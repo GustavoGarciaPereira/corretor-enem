@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -6,7 +7,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import auth, upload_router  # routers
+from app.routers import auth, upload_router, correction_router, page_router  # routers
 
 # ─── App instance ────────────────────────────────────────────────────────────
 
@@ -26,13 +27,29 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 
 @app.on_event("startup")
 def on_startup():
-    Base.metadata.create_all(bind=engine)
+    """Create tables. If it fails (e.g. stale readonly DB), clean up and retry."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        logging.getLogger("app").info("Database tables ready.")
+    except Exception as exc:
+        logging.warning("create_all failed (%s); cleaning up stale DB files.", exc)
+        import glob
+        db_path = settings.DATABASE_URL.replace("sqlite:///", "", 1)
+        for f in glob.glob(f"{db_path}*"):
+            try:
+                Path(f).unlink()
+            except OSError:
+                pass
+        Base.metadata.create_all(bind=engine)
+        logging.getLogger("app").info("Database tables ready after cleanup.")
 
 
 # ─── Routers ─────────────────────────────────────────────────────────────────
 
 app.include_router(auth.router, prefix="", tags=["auth"])
 app.include_router(upload_router.router, prefix="", tags=["upload"])
+app.include_router(correction_router.router, prefix="", tags=["correction"])
+app.include_router(page_router.router, prefix="", tags=["pages"])
 
 
 # ─── Health check ────────────────────────────────────────────────────────────

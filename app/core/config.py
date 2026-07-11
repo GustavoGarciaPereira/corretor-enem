@@ -10,6 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 class Settings:
     DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "sk-placeholder-change-me")
+    DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "sua_chave_super_secreta_32_bytes")
     _db_url: str = os.getenv("DATABASE_URL", "sqlite:///./instance/app.db")
     ALGORITHM: str = "HS256"

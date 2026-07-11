@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Estatísticas — Correção de Redação{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>📊 Estatísticas</h2>
+    <a href="/dashboard" class="btn btn-outline-secondary">← Dashboard</a>
+</div>
+
+{% if total_essays == 0 %}
+<div class="text-center py-5">
+    <p class="text-muted fs-5">Nenhuma redação corrigida ainda.</p>
+    <a href="/upload" class="btn btn-primary btn-lg">Enviar minha primeira redação</a>
+</div>
+{% else %}
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="card text-center shadow-sm">
+            <div class="card-body">
+                <h6 class="text-muted mb-1">Redações</h6>
+                <span class="fs-3 fw-bold">{{ total_essays }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card text-center shadow-sm border-success">
+            <div class="card-body">
+                <h6 class="text-muted mb-1">Média Total</h6>
+                <span class="fs-3 fw-bold text-success">{{ avg_total }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card text-center shadow-sm border-primary">
+            <div class="card-body">
+                <h6 class="text-muted mb-1">Melhor C1</h6>
+                <span class="fs-3 fw-bold text-primary">{{ c1_data|max or 0 }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="card text-center shadow-sm border-info">
+            <div class="card-body">
+                <h6 class="text-muted mb-1">Melhor C5</h6>
+                <span class="fs-3 fw-bold text-info">{{ c5_data|max or 0 }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Evolution chart -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">📈 Evolução das Notas</h5>
+    </div>
+    <div class="card-body">
+        <canvas id="evolutionChart" height="100"></canvas>
+    </div>
+</div>
+
+<!-- Averages chart -->
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0">🎯 Média por Competência</h5>
+    </div>
+    <div class="card-body">
+        <canvas id="averageChart" height="80"></canvas>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    {% if total_essays > 0 %}
+    // ── Evolution chart ──
+    new Chart(document.getElementById('evolutionChart'), {
+        type: 'line',
+        data: {
+            labels: {{ dates|tojson }},
+            datasets: [
+                { label: 'C1 — Norma culta', data: {{ c1_data|tojson }},
+                  borderColor: '#dc3545', backgroundColor: 'transparent', tension: 0.3 },
+                { label: 'C2 — Tema', data: {{ c2_data|tojson }},
+                  borderColor: '#fd7e14', backgroundColor: 'transparent', tension: 0.3 },
+                { label: 'C3 — Repertório', data: {{ c3_data|tojson }},
+                  borderColor: '#ffc107', backgroundColor: 'transparent', tension: 0.3 },
+                { label: 'C4 — Coesão', data: {{ c4_data|tojson }},
+                  borderColor: '#0d6efd', backgroundColor: 'transparent', tension: 0.3 },
+                { label: 'C5 — Intervenção', data: {{ c5_data|tojson }},
+                  borderColor: '#198754', backgroundColor: 'transparent', tension: 0.3 },
+                { label: 'Total', data: {{ total_data|tojson }},
+                  borderColor: '#6f42c1', backgroundColor: 'transparent',
+                  borderDash: [5, 5], tension: 0.3 },
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true, max: 200,
+                     title: { display: true, text: 'Pontos' } }
+            },
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } }
+            }
+        }
+    });
+
+    // ── Average by competency (radar) ──
+    new Chart(document.getElementById('averageChart'), {
+        type: 'radar',
+        data: {
+            labels: ['C1 — Norma culta', 'C2 — Tema', 'C3 — Repertório',
+                     'C4 — Coesão', 'C5 — Intervenção'],
+            datasets: [{
+                label: 'Média',
+                data: [{{ avg_c1 }}, {{ avg_c2 }}, {{ avg_c3 }}, {{ avg_c4 }}, {{ avg_c5 }}],
+                backgroundColor: 'rgba(13, 110, 253, 0.15)',
+                borderColor: '#0d6efd',
+                pointBackgroundColor: '#0d6efd',
+                fill: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                r: { beginAtZero: true, max: 200,
+                     ticks: { stepSize: 50 } }
+            },
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+    {% endif %}
+})();
+</script>
+{% endblock %}

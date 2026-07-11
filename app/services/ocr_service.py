@@ -61,7 +61,7 @@ async def _call_deepseek_vision(
     }
 
     payload = {
-        "model": "deepseek-chat",
+        "model": settings.DEEPSEEK_MODEL,
         "messages": [
             {
                 "role": "user",

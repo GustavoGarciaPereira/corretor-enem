@@ -191,6 +191,62 @@ Crie `async def perform_full_correction(essay_id: int, text: str, db: AsyncSessi
 ### Tarefa 5.3: Segurança de Upload
 - Valide extensões: `.pdf`, `.jpg`, `.jpeg`, `.png`.
 - Limite de tamanho: 10MB (use `aiofiles` para ler em chunks e validar).
+Adicione uma nova FASE 6 (ou insira antes da FASE 4) para implementar o CRUD e a integração.
+
+##  FASE 6: Gerenciamento de Competências e Templates
+### Tarefa 6.1: Modelos (já descritos acima)
+### Tarefa 6.2: Seed inicial – ao criar as tabelas, insira as 5 competências padrão do ENEM e um template "ENEM Oficial" associado a elas.
+### Tarefa 6.3: Rotas CRUD para competências (protegidas por Depends(get_current_user)):
+
+GET /competences – listar todas (com filtro por usuário ou globais)
+
+POST /competences – criar nova
+
+PUT /competences/{id} – editar
+
+DELETE /competences/{id} – excluir (apenas se não estiver em uso)
+
+Tarefa 6.4: Rotas CRUD para templates:
+
+GET /templates – listar
+
+POST /templates – criar (com seleção de competências via checkboxes)
+
+PUT /templates/{id} – editar (reassociar competências)
+
+DELETE /templates/{id} – excluir
+
+### Tarefa 6.5: Atualizar a tela de upload (upload.html) para incluir um <select> com os templates do usuário (e um padrão).
+### Tarefa 6.6: Modificar o serviço de correção para receber o template_id do Essay e usar as competências associadas.
+### Tarefa 6.7: Atualizar a tela de resultado (result.html) para exibir as notas e justificativas de forma dinâmica, iterando sobre o scores_json.
+
+### Tarefa 6.8: (Opcional) Permitir que o professor defina um template padrão por usuário (campo default_template_id no User).
+
+📝 Exemplo de Prompt Gerado Dinamicamente
+text
+Corrija a redação abaixo de acordo com as seguintes competências:
+
+1. Competência 1: Domínio da norma padrão (0 a 200)
+2. Competência 2: Compreensão do tema (0 a 200)
+3. Competência 3: Repertório sociocultural (0 a 200)
+4. Competência 4: Coesão textual (0 a 200)
+5. Competência 5: Proposta de intervenção (0 a 200)
+
+Para cada competência, retorne um objeto JSON com 'nota' e 'justificativa'.
+Retorne APENAS JSON válido, sem markdown, no formato:
+{"comp_1": {"nota": int, "justificativa": "..."}, ... , "total": int}
+
+Redação:
+[texto do aluno]
+🔄 Compatibilidade com Dados Antigos
+Caso você já tenha redações corrigidas com as colunas c1..c5, sugiro uma migração que:
+
+Adicione scores_json como campo JSON (pode ser NULL).
+
+Para registros antigos, preencha scores_json com um objeto gerado a partir dos campos c1..c5 (assim você unifica).
+
+Gradualmente, passe a usar apenas o JSON.
+
 
 ---
 

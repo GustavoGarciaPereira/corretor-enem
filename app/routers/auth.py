@@ -6,7 +6,7 @@ import bcrypt as _bcrypt
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.templates_setup import templates
-from app.models.models import User, Essay
+from app.models.models import User
 
 router = APIRouter()
 
@@ -72,30 +72,6 @@ def login(
 
     request.session["user_id"] = user.id
     return RedirectResponse(url="/dashboard", status_code=302)
-
-
-@router.get("/dashboard")
-def dashboard(request: Request, db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if user_id is None:
-        return RedirectResponse(url="/login", status_code=302)
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        request.session.clear()
-        return RedirectResponse(url="/login", status_code=302)
-
-    essays = (
-        db.query(Essay)
-        .filter(Essay.user_id == user_id)
-        .order_by(Essay.created_at.desc())
-        .all()
-    )
-
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {"request": request, "essays": essays, "user": user},
-    )
 
 
 @router.get("/logout")

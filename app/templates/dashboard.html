@@ -10,25 +10,28 @@
 
 {% if essays %}
 <div class="table-responsive">
-    <table class="table table-striped table-hover">
+    <table class="table table-striped table-hover align-middle">
         <thead class="table-dark">
             <tr>
                 <th>Data</th>
                 <th>Tipo</th>
                 <th>Nota Final</th>
+                <th>Nota A</th>
+                <th>Nota B</th>
                 <th>Status</th>
                 <th>Ações</th>
             </tr>
         </thead>
         <tbody>
             {% for essay in essays %}
+            {% set scores = essay_scores.get(essay.id, {'a': None, 'b': None}) %}
             <tr>
-                <td>{{ essay.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td class="text-nowrap">{{ essay.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
                 <td>
                     {% if essay.source_type == 'pasted' %}
                         📝 Colado
                     {% else %}
-                        📄 Digitalizado
+                        📄 Scan
                     {% endif %}
                 </td>
                 <td>
@@ -39,12 +42,26 @@
                     {% endif %}
                 </td>
                 <td>
+                    {% if scores['a'] is not none %}
+                        {{ scores['a'] }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if scores['b'] is not none %}
+                        {{ scores['b'] }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
                     {% if essay.status == 'completed' %}
                         <span class="badge bg-success">Concluído</span>
                     {% elif essay.status == 'pending_correction' %}
-                        <span class="badge bg-warning text-dark">Aguardando correção</span>
+                        <span class="badge bg-warning text-dark">Aguardando</span>
                     {% elif essay.status == 'pending_review' %}
-                        <span class="badge bg-info text-dark">Revisão necessária</span>
+                        <span class="badge bg-info text-dark">Revisão</span>
                     {% elif essay.status == 'failed' %}
                         <span class="badge bg-danger">Falha</span>
                     {% else %}
@@ -55,7 +72,9 @@
                     {% if essay.status == 'completed' %}
                         <a href="/result/{{ essay.id }}" class="btn btn-sm btn-primary">Ver</a>
                     {% elif essay.status == 'failed' %}
-                        <a href="/correction/start/{{ essay.id }}" class="btn btn-sm btn-warning">Tentar novamente</a>
+                        <a href="/correction/start/{{ essay.id }}" class="btn btn-sm btn-warning">Tentar</a>
+                    {% elif essay.status == 'pending_review' %}
+                        <a href="/review/{{ essay.id }}" class="btn btn-sm btn-info">Revisar</a>
                     {% endif %}
                 </td>
             </tr>

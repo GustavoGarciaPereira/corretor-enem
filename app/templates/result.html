@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Resultado — Correção de Redação{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2>Resultado da Correção</h2>
+        <p class="text-muted">
+            {% if essay.source_type == 'pasted' %}
+                📝 Texto colado
+            {% else %}
+                📄 Arquivo: {{ essay.filename }}
+            {% endif %}
+            — {{ essay.created_at.strftime('%d/%m/%Y %H:%M') }}
+        </p>
+    </div>
+    <div class="col-auto">
+        <a href="/dashboard" class="btn btn-outline-secondary">← Dashboard</a>
+    </div>
+</div>
+
+<!-- ═══ Texto da redação (topo) ═══ -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">📄 Texto da Redação</h5>
+    </div>
+    <div class="card-body">
+        <pre class="mb-0 text-wrap" style="white-space: pre-wrap; font-family: inherit; font-size: 0.95rem;">{{ essay.raw_text or '(vazio)' }}</pre>
+    </div>
+</div>
+
+<!-- ═══ Banner de divergência (C) ═══ -->
+{% if has_c %}
+<div class="alert alert-warning d-flex align-items-center py-3" role="alert">
+    <span style="font-size: 1.5rem; margin-right: 0.75rem;">⚠️</span>
+    <div>
+        <strong>Divergência detectada!</strong> A diferença entre os corretores A e B foi superior a 100 pontos.
+        Uma <strong>terceira correção</strong> (Corretor C) foi acionada como desempate.
+    </div>
+</div>
+{% endif %}
+
+<!-- ═══ Nota oficial (rodapé) ═══ -->
+{% if essay.final_score is not none %}
+<div class="alert alert-success text-center py-3 mb-4">
+    <h4 class="mb-0">
+        🏆 Nota Oficial: <strong>{{ essay.final_score }}</strong> / 1000
+    </h4>
+    <small class="text-muted">
+        Média dos corretores
+        {% if has_c %}mais próximos (desempate aplicado){% endif %}
+    </small>
+</div>
+{% endif %}
+
+{% if corrections|length == 0 %}
+<div class="alert alert-warning">
+    Nenhuma correção encontrada. A correção pode ter falhado.
+    <a href="/upload" class="alert-link">Tentar novamente</a>.
+</div>
+{% else %}
+    <!-- ═══ Colunas dos corretores ═══ -->
+    <div class="row g-4">
+        {% for cor in corrections %}
+        <div class="col-md-{% if corrections|length == 2 %}6{% else %}4{% endif %}">
+            <div class="card shadow h-100">
+                <div class="card-header
+                    {% if cor.corrector_type == 'A' %}bg-danger text-white
+                    {% elif cor.corrector_type == 'B' %}bg-primary text-white
+                    {% else %}bg-warning{% endif %}">
+                    <h5 class="mb-0 d-flex align-items-center">
+                        Corretor {{ cor.corrector_type }}
+                        {% if cor.corrector_type == 'C' %}
+                            <span class="badge bg-light text-dark ms-2">Desempate</span>
+                        {% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h3 class="text-center mb-4">
+                        {{ cor.total_score or '—' }} <small class="text-muted">/ 1000</small>
+                    </h3>
+
+                    {% set competencias = [
+                        ('c1', 'C1 — Domínio da norma culta'),
+                        ('c2', 'C2 — Tema e desenvolvimento'),
+                        ('c3', 'C3 — Repertório'),
+                        ('c4', 'C4 — Coesão'),
+                        ('c5', 'C5 — Intervenção'),
+                    ] %}
+
+                    {% for key, label in competencias %}
+                        {% set nota = cor|attr(key) or 0 %}
+                        {% set pct = (nota / 200 * 100)|int %}
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small">
+                                <span>{{ label }}</span>
+                                <span><strong>{{ nota }}</strong> / 200</span>
+                            </div>
+                            <div class="progress" style="height: 10px;">
+                                <div class="progress-bar
+                                    {% if pct < 50 %}bg-danger
+                                    {% elif pct < 75 %}bg-warning
+                                    {% else %}bg-success{% endif %}"
+                                    role="progressbar"
+                                    style="width: {{ pct }}%;"
+                                    aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+
+                    <!-- Feedback accordion -->
+                    {% if cor.feedback_json %}
+                    {% set feedback = cor.feedback_json|from_json %}
+                    <div class="accordion mt-3" id="feedback-{{ cor.id }}">
+                        {% for key, ft_label in competencias %}
+                        {% set fb = feedback.get(key, {}) %}
+                        {% if fb.get('justificativa') %}
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed small py-2"
+                                        type="button" data-bs-toggle="collapse"
+                                        data-bs-target="#fb-{{ cor.id }}-{{ key }}">
+                                    {{ ft_label }}
+                                </button>
+                            </h2>
+                            <div id="fb-{{ cor.id }}-{{ key }}"
+                                 class="accordion-collapse collapse"
+                                 data-bs-parent="#feedback-{{ cor.id }}">
+                                <div class="accordion-body small">
+                                    {{ fb['justificativa'] }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% endif %}
+{% endblock %}
