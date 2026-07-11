@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.templates_setup import templates
-from app.models.models import User, Essay
+from app.models.models import User, Essay, CorrectionTemplate
 from app.services.ocr_service import extract_text_from_file
 
 router = APIRouter()
@@ -36,7 +36,21 @@ def upload_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if user is None:
         return RedirectResponse(url="/login", status_code=302)
-    return templates.TemplateResponse("upload.html", {"request": request})
+
+    correction_templates = (
+        db.query(CorrectionTemplate)
+        .filter(
+            (CorrectionTemplate.is_default == True)
+            | (CorrectionTemplate.created_by == user.id)
+        )
+        .order_by(CorrectionTemplate.is_default.desc(), CorrectionTemplate.name)
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        "upload.html",
+        {"request": request, "correction_templates": correction_templates},
+    )
 
 
 # ── Paste text ───────────────────────────────────────────────────────────────
@@ -45,6 +59,7 @@ def upload_page(request: Request, db: Session = Depends(get_db)):
 def upload_text(
     request: Request,
     raw_text: str = Form(...),
+    template_id: int = Form(...),
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
@@ -56,6 +71,7 @@ def upload_text(
         source_type="pasted",
         raw_text=raw_text.strip(),
         status="pending_correction",
+        template_id=template_id,
     )
     db.add(essay)
     db.commit()
@@ -70,6 +86,7 @@ def upload_text(
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
+    template_id: int = Form(...),
     db: Session = Depends(get_db),
 ):
     user = get_current_user(request, db)
@@ -111,6 +128,7 @@ async def upload_file(
         filename=original_name,
         source_type="scanned",
         status="pending_review",
+        template_id=template_id,
     )
     db.add(essay)
     db.commit()

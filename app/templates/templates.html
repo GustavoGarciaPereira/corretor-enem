@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Templates — Correção de Redação{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>📁 Templates de Correção</h2>
+    <a href="/templates/new" class="btn btn-success">+ Novo Template</a>
+</div>
+
+{% if templates %}
+<div class="row g-4">
+    {% for t in templates %}
+    <div class="col-md-6">
+        <div class="card shadow h-100">
+            <div class="card-header d-flex justify-content-between align-items-center
+                {% if t.is_default %}bg-secondary text-white{% endif %}">
+                <h5 class="mb-0">{{ t.name }}</h5>
+                {% if t.is_default %}
+                    <span class="badge bg-light text-dark">Padrão</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if t.description %}
+                <p class="text-muted">{{ t.description }}</p>
+                {% endif %}
+
+                <h6 class="mb-2">Competências:</h6>
+                <ul class="list-group list-group-flush mb-3">
+                    {% for comp in t.competences %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-1">
+                        {{ comp.name }}
+                        <span class="badge bg-primary rounded-pill">{{ comp.max_score }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        Redações: {{ essay_counts.get(t.id, 0) }}
+                    </small>
+                    <div>
+                        {% if not t.is_default %}
+                        <a href="/templates/{{ t.id }}/edit" class="btn btn-sm btn-primary">Editar</a>
+                        <form method="post" action="/templates/{{ t.id }}/delete" style="display:inline"
+                              onsubmit="return confirm('Excluir este template?');">
+                            <button type="submit" class="btn btn-sm btn-danger">Excluir</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">Nenhum template encontrado.</p>
+<a href="/templates/new" class="btn btn-primary">Criar primeiro template</a>
+{% endif %}
+{% endblock %}

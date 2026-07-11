@@ -44,6 +44,17 @@
                                           rows="20" required
                                 placeholder="Cole aqui o texto completo da redação..."></textarea>
                             </div>
+                            <div class="mb-3">
+                                <label for="template_id_text" class="form-label">Template de Correção</label>
+                                <select class="form-select" id="template_id_text" name="template_id" required>
+                                    <option value="">Selecione...</option>
+                                    {% for t in correction_templates %}
+                                    <option value="{{ t.id }}" {% if t.is_default %}selected{% endif %}>
+                                        {{ t.name }}{% if t.is_default %} (Padrão){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                             <button type="submit" class="btn btn-primary">
                                 Enviar para Correção
                             </button>
@@ -64,6 +75,17 @@
                                 </label>
                                 <input class="form-control" type="file" id="file" name="file"
                                        accept=".pdf,.jpg,.jpeg,.png" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="template_id_file" class="form-label">Template de Correção</label>
+                                <select class="form-select" id="template_id_file" name="template_id" required>
+                                    <option value="">Selecione...</option>
+                                    {% for t in correction_templates %}
+                                    <option value="{{ t.id }}" {% if t.is_default %}selected{% endif %}>
+                                        {{ t.name }}{% if t.is_default %} (Padrão){% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
                             </div>
                             <div class="text-muted small mb-3">
                                 Máximo de 10 MB. Para PDFs, tenta extrair texto diretamente;

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{% if template %}Editar{% else %}Novo{% endif %} Template — Correção de Redação{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2 class="mb-4">{% if template %}Editar{% else %}Novo{% endif %} Template</h2>
+
+        <div class="card shadow">
+            <div class="card-body">
+                <form method="post"
+                      action="{% if template %}/templates/{{ template.id }}/edit{% else %}/templates{% endif %}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome do Template</label>
+                        <input type="text" class="form-control" id="name" name="name"
+                               value="{{ template.name if template else '' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição (opcional)</label>
+                        <textarea class="form-control" id="description" name="description"
+                                  rows="2">{{ template.description if template else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Competências</label>
+                        <div class="list-group">
+                            {% for comp in competences %}
+                            <label class="list-group-item d-flex align-items-center gap-2">
+                                <input type="checkbox" name="competence_ids" value="{{ comp.id }}"
+                                       class="form-check-input"
+                                       {% if template and comp.id in selected_ids %}checked{% endif %}>
+                                <div>
+                                    <strong>{{ comp.name }}</strong>
+                                    <small class="text-muted d-block">{{ comp.description[:60] }}</small>
+                                </div>
+                                <span class="badge bg-primary ms-auto">{{ comp.max_score }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% if not competences %}
+                        <p class="text-muted mt-2">
+                            Nenhuma competência disponível.
+                            <a href="/competences">Crie uma primeiro</a>.
+                        </p>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="/templates" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            {% if template %}Salvar{% else %}Criar{% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

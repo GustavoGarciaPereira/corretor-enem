@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Competências — Correção de Redação{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>📋 Competências</h2>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#newCompModal">
+        + Nova Competência
+    </button>
+</div>
+
+{% if competences %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Nome</th>
+                <th>Descrição</th>
+                <th>Valor Máx.</th>
+                <th>Tipo</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for comp in competences %}
+            <tr>
+                <td><strong>{{ comp.name }}</strong></td>
+                <td>{{ comp.description[:80] }}{% if comp.description|length > 80 %}...{% endif %}</td>
+                <td>{{ comp.max_score }}</td>
+                <td>
+                    {% if comp.is_default %}
+                        <span class="badge bg-secondary">Padrão</span>
+                    {% else %}
+                        <span class="badge bg-info text-dark">Personalizada</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if not comp.is_default %}
+                    <a href="/competences/{{ comp.id }}/edit" class="btn btn-sm btn-primary">Editar</a>
+                    <form method="post" action="/competences/{{ comp.id }}/delete" style="display:inline"
+                          onsubmit="return confirm('Excluir esta competência?');">
+                        <button type="submit" class="btn btn-sm btn-danger">Excluir</button>
+                    </form>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="text-muted">Nenhuma competência encontrada.</p>
+{% endif %}
+
+<!-- New Competence Modal -->
+<div class="modal fade" id="newCompModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="/competences">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nova Competência</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="description" name="description" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="max_score" class="form-label">Valor Máximo (pontos)</label>
+                        <input type="number" class="form-control" id="max_score" name="max_score" value="200" min="1" max="1000">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

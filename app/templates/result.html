@@ -81,61 +81,114 @@
                         {{ cor.total_score or '—' }} <small class="text-muted">/ 1000</small>
                     </h3>
 
-                    {% set competencias = [
-                        ('c1', 'C1 — Domínio da norma culta'),
-                        ('c2', 'C2 — Tema e desenvolvimento'),
-                        ('c3', 'C3 — Repertório'),
-                        ('c4', 'C4 — Coesão'),
-                        ('c5', 'C5 — Intervenção'),
-                    ] %}
-
-                    {% for key, label in competencias %}
-                        {% set nota = cor|attr(key) or 0 %}
-                        {% set pct = (nota / 200 * 100)|int %}
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between small">
-                                <span>{{ label }}</span>
-                                <span><strong>{{ nota }}</strong> / 200</span>
-                            </div>
-                            <div class="progress" style="height: 10px;">
-                                <div class="progress-bar
-                                    {% if pct < 50 %}bg-danger
-                                    {% elif pct < 75 %}bg-warning
-                                    {% else %}bg-success{% endif %}"
-                                    role="progressbar"
-                                    style="width: {{ pct }}%;"
-                                    aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+                    {% if cor.scores_json %}
+                        {# ── Dynamic competences (new format) ── #}
+                        {% set sjson = cor.scores_json %}
+                        {% for key in sjson %}
+                            {% if key != 'total' %}
+                                {% set comp = sjson[key] %}
+                                {% set nota = comp['nota'] or 0 %}
+                                {% set max_n = comp['max_score'] or 200 %}
+                                {% set pct = (nota / max_n * 100)|int %}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between small">
+                                        <span>{{ comp['nome'] }}</span>
+                                        <span><strong>{{ nota }}</strong> / {{ max_n }}</span>
+                                    </div>
+                                    <div class="progress" style="height: 10px;">
+                                        <div class="progress-bar
+                                            {% if pct < 50 %}bg-danger
+                                            {% elif pct < 75 %}bg-warning
+                                            {% else %}bg-success{% endif %}"
+                                            role="progressbar"
+                                            style="width: {{ pct }}%;"
+                                            aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            {% endif %}
+                        {% endfor %}
+
+                        {# ── Feedback accordion (dynamic) ── #}
+                        <div class="accordion mt-3" id="feedback-{{ cor.id }}">
+                            {% for key in sjson %}
+                                {% if key != 'total' and sjson[key].get('justificativa') %}
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header">
+                                        <button class="accordion-button collapsed small py-2"
+                                                type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#fb-{{ cor.id }}-{{ key }}">
+                                            {{ sjson[key]['nome'] }}
+                                        </button>
+                                    </h2>
+                                    <div id="fb-{{ cor.id }}-{{ key }}"
+                                         class="accordion-collapse collapse"
+                                         data-bs-parent="#feedback-{{ cor.id }}">
+                                        <div class="accordion-body small">
+                                            {{ sjson[key]['justificativa'] }}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
                         </div>
-                    {% endfor %}
+                    {% else %}
+                        {# ── Legacy format (c1..c5) ── #}
+                        {% set competencias = [
+                            ('c1', 'C1 — Domínio da norma culta'),
+                            ('c2', 'C2 — Tema e desenvolvimento'),
+                            ('c3', 'C3 — Repertório'),
+                            ('c4', 'C4 — Coesão'),
+                            ('c5', 'C5 — Intervenção'),
+                        ] %}
 
-                    <!-- Feedback accordion -->
-                    {% if cor.feedback_json %}
-                    {% set feedback = cor.feedback_json|from_json %}
-                    <div class="accordion mt-3" id="feedback-{{ cor.id }}">
-                        {% for key, ft_label in competencias %}
-                        {% set fb = feedback.get(key, {}) %}
-                        {% if fb.get('justificativa') %}
-                        <div class="accordion-item">
-                            <h2 class="accordion-header">
-                                <button class="accordion-button collapsed small py-2"
-                                        type="button" data-bs-toggle="collapse"
-                                        data-bs-target="#fb-{{ cor.id }}-{{ key }}">
-                                    {{ ft_label }}
-                                </button>
-                            </h2>
-                            <div id="fb-{{ cor.id }}-{{ key }}"
-                                 class="accordion-collapse collapse"
-                                 data-bs-parent="#feedback-{{ cor.id }}">
-                                <div class="accordion-body small">
-                                    {{ fb['justificativa'] }}
+                        {% for key, label in competencias %}
+                            {% set nota = cor|attr(key) or 0 %}
+                            {% set pct = (nota / 200 * 100)|int %}
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between small">
+                                    <span>{{ label }}</span>
+                                    <span><strong>{{ nota }}</strong> / 200</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar
+                                        {% if pct < 50 %}bg-danger
+                                        {% elif pct < 75 %}bg-warning
+                                        {% else %}bg-success{% endif %}"
+                                        role="progressbar"
+                                        style="width: {{ pct }}%;"
+                                        aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+                                    </div>
                                 </div>
                             </div>
+                        {% endfor %}
+
+                        {% if cor.feedback_json %}
+                        {% set feedback = cor.feedback_json|from_json %}
+                        <div class="accordion mt-3" id="feedback-legacy-{{ cor.id }}">
+                            {% for key, ft_label in competencias %}
+                            {% set fb = feedback.get(key, {}) %}
+                            {% if fb.get('justificativa') %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed small py-2"
+                                            type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#fb-{{ cor.id }}-{{ key }}">
+                                        {{ ft_label }}
+                                    </button>
+                                </h2>
+                                <div id="fb-{{ cor.id }}-{{ key }}"
+                                     class="accordion-collapse collapse"
+                                     data-bs-parent="#feedback-legacy-{{ cor.id }}">
+                                    <div class="accordion-body small">
+                                        {{ fb['justificativa'] }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
                         </div>
                         {% endif %}
-                        {% endfor %}
-                    </div>
                     {% endif %}
                 </div>
             </div>

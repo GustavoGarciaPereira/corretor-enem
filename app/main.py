@@ -7,7 +7,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.routers import auth, upload_router, correction_router, page_router  # routers
+from app.routers import auth, upload_router, correction_router, page_router, competence_router, template_router  # routers
 
 # ─── App instance ────────────────────────────────────────────────────────────
 
@@ -43,6 +43,11 @@ def on_startup():
         Base.metadata.create_all(bind=engine)
         logging.getLogger("app").info("Database tables ready after cleanup.")
 
+    # Seed default competences / template
+    from app.core.seed import seed_default_data
+    seed_default_data()
+    logging.getLogger("app").info("Default data seeded.")
+
 
 # ─── Routers ─────────────────────────────────────────────────────────────────
 
@@ -50,6 +55,8 @@ app.include_router(auth.router, prefix="", tags=["auth"])
 app.include_router(upload_router.router, prefix="", tags=["upload"])
 app.include_router(correction_router.router, prefix="", tags=["correction"])
 app.include_router(page_router.router, prefix="", tags=["pages"])
+app.include_router(competence_router.router, prefix="", tags=["admin"])
+app.include_router(template_router.router, prefix="", tags=["admin"])
 
 
 # ─── Health check ────────────────────────────────────────────────────────────

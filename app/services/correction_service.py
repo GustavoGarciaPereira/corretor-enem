@@ -1,46 +1,31 @@
 import json
-from datetime import datetime
 
 import httpx
 
 from app.core.config import settings
-from app.core.database import SessionLocal, run_sync
-from app.models.models import Essay, Correction
+from app.core.database import SessionLocal
+from app.models.models import Essay, Correction, Competence, CorrectionTemplate, TemplateCompetence
 
 # ─── System Prompts ──────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT_A = (
-    "Você é um corretor RIGOROSO da redação do ENEM. "
-    "Seu foco principal é avaliar com dureza a Competência 1 (domínio da norma culta: gramática, ortografia, concordância) "
-    "e a Competência 4 (coesão: uso de conectivos, progressão textual, articulação entre parágrafos). "
-    "Cada competência vale de 0 a 200 pontos. Seja crítico e detalhista."
+    "Você é um corretor RIGOROSO de redação. "
+    "Seu foco principal é avaliar com dureza a correção gramatical (ortografia, concordância, regência) "
+    "e a coesão textual (conectivos, progressão, articulação entre parágrafos). "
+    "Seja crítico e detalhista nas justificativas."
 )
 
 SYSTEM_PROMPT_B = (
-    "Você é um corretor PROGRESSISTA da redação do ENEM. "
-    "Seu foco principal é valorizar a Competência 2 (compreensão do tema e desenvolvimento), "
-    "a Competência 3 (repertório sociocultural: citações, dados, referências) "
-    "e a Competência 5 (intervenção: proposta detalhada e respeitosa aos direitos humanos). "
-    "Cada competência vale de 0 a 200 pontos. Seja generoso quando o texto mostrar boas ideias."
+    "Você é um corretor PROGRESSISTA de redação. "
+    "Seu foco principal é valorizar a compreensão do tema, o repertório sociocultural "
+    "e a proposta de intervenção. "
+    "Seja generoso quando o texto mostrar boas ideias e criatividade."
 )
 
 SYSTEM_PROMPT_C = (
-    "Você é um corretor EQUILIBRADO da redação do ENEM. "
-    "Analise todas as 5 competências com justiça e imparcialidade. "
-    "Cada competência vale de 0 a 200 pontos. Seu voto é o desempate."
-)
-
-USER_PROMPT_TEMPLATE = (
-    'Corrija a redação ENEM abaixo. '
-    'Notas de 0 a 200 por competência. '
-    'Retorne APENAS JSON válido, sem markdown, sem explicações extras, no formato: '
-    '{{"c1":{{"nota":int,"justificativa":"..."}},'
-    '"c2":{{"nota":int,"justificativa":"..."}},'
-    '"c3":{{"nota":int,"justificativa":"..."}},'
-    '"c4":{{"nota":int,"justificativa":"..."}},'
-    '"c5":{{"nota":int,"justificativa":"..."}},'
-    '"total":int}}\n\n'
-    'REDAÇÃO:\n{text}'
+    "Você é um corretor EQUILIBRADO de redação. "
+    "Analise todas as competências com justiça e imparcialidade. "
+    "Seu voto é o desempate."
 )
 
 CORRECTOR_CONFIG = {
@@ -50,23 +35,89 @@ CORRECTOR_CONFIG = {
 }
 
 
-async def call_deepseek_corrector(essay_text: str, corrector_type: str) -> dict:
-    """Call the DeepSeek API for one correction pass and return parsed JSON."""
+# ─── Dynamic prompt builder ──────────────────────────────────────────────────
+
+def build_user_prompt(text: str, competences: list[Competence]) -> str:
+    """Build a prompt listing all competences dynamically."""
+    comp_list = "\n".join(
+        f"{i+1}. {c.name}: {c.description} (0 a {c.max_score})"
+        for i, c in enumerate(competences)
+    )
+    return (
+        "Corrija a redação abaixo de acordo com as seguintes competências:\n\n"
+        f"{comp_list}\n\n"
+        "Para cada competência, retorne um objeto JSON com 'nota' (int) e 'justificativa' (string).\n"
+        "Retorne APENAS JSON válido, sem markdown, no formato:\n"
+        '{"comp_1": {"nota": int, "justificativa": "..."},'
+        ' "comp_2": {...}, ..., "total": int}\n\n'
+        f"Redação:\n{text}"
+    )
+
+
+# ─── Get competences for a template ──────────────────────────────────────────
+
+def get_competences_for_template(template_id: int) -> list[Competence]:
+    """Fetch all competences associated with a given template."""
+    db = SessionLocal()
+    try:
+        competences = (
+            db.query(Competence)
+            .join(TemplateCompetence)
+            .filter(TemplateCompetence.template_id == template_id)
+            .all()
+        )
+        return list(competences)
+    finally:
+        db.close()
+
+
+def get_or_create_default_template() -> int:
+    """Return the id of the default ENEM template (creates if missing)."""
+    db = SessionLocal()
+    try:
+        template = (
+            db.query(CorrectionTemplate)
+            .filter(CorrectionTemplate.is_default == True)
+            .first()
+        )
+        if template:
+            return template.id
+        # If no default template exists yet, try to seed
+        from app.core.seed import seed_default_data
+        seed_default_data()
+        template = (
+            db.query(CorrectionTemplate)
+            .filter(CorrectionTemplate.is_default == True)
+            .first()
+        )
+        return template.id if template else 0
+    finally:
+        db.close()
+
+
+# ─── API call ────────────────────────────────────────────────────────────────
+
+async def call_deepseek_corrector(
+    essay_text: str, corrector_type: str, competences: list[Competence]
+) -> dict:
+    """Call the DeepSeek API for one correction pass with dynamic competences."""
     cfg = CORRECTOR_CONFIG[corrector_type]
 
     if not settings.DEEPSEEK_API_KEY or settings.DEEPSEEK_API_KEY.startswith("sk-placeholder"):
-        return _mock_correction(corrector_type)
+        return _mock_dynamic_correction(corrector_type, competences)
 
     headers = {
         "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
         "Content-Type": "application/json",
     }
 
+    user_prompt = build_user_prompt(essay_text, competences)
+
     payload = {
         "model": settings.DEEPSEEK_MODEL,
         "messages": [
             {"role": "system", "content": cfg["system_prompt"]},
-            {"role": "user", "content": USER_PROMPT_TEMPLATE.format(text=essay_text)},
+            {"role": "user", "content": user_prompt},
         ],
         "temperature": cfg["temperature"],
         "max_tokens": 4096,
@@ -85,28 +136,22 @@ async def call_deepseek_corrector(essay_text: str, corrector_type: str) -> dict:
     return _parse_json_response(content, corrector_type)
 
 
-def _mock_correction(corrector_type: str) -> dict:
+def _mock_dynamic_correction(corrector_type: str, competences: list[Competence]) -> dict:
     """Return simulated correction for development without an API key."""
     import random
-    base = 100 if corrector_type == "A" else 120
-    c = {
-        "c1": base + random.randint(-20, 20),
-        "c2": base + random.randint(-20, 20),
-        "c3": base + random.randint(-20, 20),
-        "c4": base + random.randint(-20, 20),
-        "c5": base + random.randint(-20, 20),
-    }
-    c["total"] = c["c1"] + c["c2"] + c["c3"] + c["c4"] + c["c5"]
-    return {
-        corrector_type: {
-            "c1": {"nota": c["c1"], "justificativa": "[Mock] Avaliação simulada."},
-            "c2": {"nota": c["c2"], "justificativa": "[Mock] Avaliação simulada."},
-            "c3": {"nota": c["c3"], "justificativa": "[Mock] Avaliação simulada."},
-            "c4": {"nota": c["c4"], "justificativa": "[Mock] Avaliação simulada."},
-            "c5": {"nota": c["c5"], "justificativa": "[Mock] Avaliação simulada."},
-            "total": c["total"],
+
+    result = {}
+    total = 0
+    for i, comp in enumerate(competences, start=1):
+        nota = random.randint(comp.max_score // 2, comp.max_score)
+        key = f"comp_{i}"
+        result[key] = {
+            "nota": nota,
+            "justificativa": f"[Mock {corrector_type}] Avaliação simulada para '{comp.name}'.",
         }
-    }
+        total += nota
+    result["total"] = total
+    return {corrector_type: result}
 
 
 def _parse_json_response(content: str, corrector_type: str) -> dict:
@@ -120,19 +165,43 @@ def _parse_json_response(content: str, corrector_type: str) -> dict:
     try:
         result = json.loads(cleaned)
     except json.JSONDecodeError:
-        raise ValueError(f"Failed to parse JSON from {corrector_type} response: {content[:200]}")
+        raise ValueError(
+            f"Failed to parse JSON from {corrector_type} response: {content[:200]}"
+        )
 
     return {corrector_type: result}
 
+
+# ─── Orchestration ───────────────────────────────────────────────────────────
 
 async def perform_double_correction(essay_id: int, essay_text: str):
     """Run dual correction (A + B), save results, decide if C is needed."""
     import asyncio
 
+    # Fetch competences for this essay's template
+    db = SessionLocal()
+    try:
+        essay = db.query(Essay).filter(Essay.id == essay_id).first()
+        if not essay:
+            return {"final_score": 0}
+
+        template_id = essay.template_id
+        if not template_id:
+            template_id = get_or_create_default_template()
+
+        competences = get_competences_for_template(template_id)
+        if not competences:
+            # Fallback: create a single generic competence
+            competences = [
+                Competence(name="Avaliação Geral", description="Nota geral da redação", max_score=1000)
+            ]
+    finally:
+        db.close()
+
     # Step 1: Run A and B in parallel
     results = await asyncio.gather(
-        call_deepseek_corrector(essay_text, "A"),
-        call_deepseek_corrector(essay_text, "B"),
+        call_deepseek_corrector(essay_text, "A", competences),
+        call_deepseek_corrector(essay_text, "B", competences),
     )
 
     corrections_data = {}
@@ -144,7 +213,7 @@ async def perform_double_correction(essay_id: int, essay_text: str):
     try:
         for ct in ("A", "B"):
             data = corrections_data[ct]
-            _save_correction(db, essay_id, ct, data)
+            _save_correction(db, essay_id, ct, data, competences)
             db.commit()
 
         # Step 3: Check score difference
@@ -152,13 +221,11 @@ async def perform_double_correction(essay_id: int, essay_text: str):
         score_b = corrections_data["B"]["total"]
         diff = abs(score_a - score_b)
 
-        final_corrections = {"A": corrections_data["A"], "B": corrections_data["B"]}
-
         if diff > 100:
             # Step 4: Call tiebreaker C
-            c_result = await call_deepseek_corrector(essay_text, "C")
+            c_result = await call_deepseek_corrector(essay_text, "C", competences)
             corrections_data.update(c_result)
-            _save_correction(db, essay_id, "C", c_result["C"])
+            _save_correction(db, essay_id, "C", c_result["C"], competences)
             db.commit()
 
             # Step 5: Find the two closest scores and average them
@@ -191,17 +258,47 @@ async def perform_double_correction(essay_id: int, essay_text: str):
     return {"final_score": final_score}
 
 
-def _save_correction(db, essay_id: int, corrector_type: str, data: dict):
-    """Insert a Correction row from parsed API data."""
+# ─── Save helper ─────────────────────────────────────────────────────────────
+
+def _save_correction(
+    db,
+    essay_id: int,
+    corrector_type: str,
+    data: dict,
+    competences: list[Competence],
+):
+    """Insert a Correction row, storing both scores_json and backward-compat c1..c5."""
+    # Build scores_json with competence names
+    scores_json = {}
+    total = data.get("total", 0)
+    for i, comp in enumerate(competences, start=1):
+        key = f"comp_{i}"
+        comp_data = data.get(key, {})
+        scores_json[key] = {
+            "nome": comp.name,
+            "nota": comp_data.get("nota", 0) if isinstance(comp_data, dict) else comp_data,
+            "max_score": comp.max_score,
+            "justificativa": comp_data.get("justificativa", "") if isinstance(comp_data, dict) else "",
+        }
+    scores_json["total"] = total
+
+    # Also fill c1..c5 for backward compatibility (map comp_1→c1, etc.)
+    c_vals = {}
+    for i in range(1, 6):
+        key = f"comp_{i}"
+        comp_data = data.get(key, {})
+        c_vals[f"c{i}"] = comp_data.get("nota", None) if isinstance(comp_data, dict) else None
+
     correction = Correction(
         essay_id=essay_id,
         corrector_type=corrector_type,
-        total_score=data.get("total"),
-        c1=data.get("c1", {}).get("nota") if isinstance(data.get("c1"), dict) else data.get("c1"),
-        c2=data.get("c2", {}).get("nota") if isinstance(data.get("c2"), dict) else data.get("c2"),
-        c3=data.get("c3", {}).get("nota") if isinstance(data.get("c3"), dict) else data.get("c3"),
-        c4=data.get("c4", {}).get("nota") if isinstance(data.get("c4"), dict) else data.get("c4"),
-        c5=data.get("c5", {}).get("nota") if isinstance(data.get("c5"), dict) else data.get("c5"),
+        total_score=total,
+        c1=c_vals["c1"],
+        c2=c_vals["c2"],
+        c3=c_vals["c3"],
+        c4=c_vals["c4"],
+        c5=c_vals["c5"],
         feedback_json=json.dumps(data, ensure_ascii=False),
+        scores_json=scores_json,
     )
     db.add(correction)
