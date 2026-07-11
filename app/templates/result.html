@@ -82,18 +82,37 @@
                     </h3>
 
                     {% if cor.scores_json %}
-                        {# ── Dynamic competences (new format) ── #}
+                        {# ── Dynamic competences ── #}
                         {% set sjson = cor.scores_json %}
                         {% for key in sjson %}
                             {% if key != 'total' %}
                                 {% set comp = sjson[key] %}
-                                {% set nota = comp['nota'] or 0 %}
-                                {% set max_n = comp['max_score'] or 200 %}
+                                {% set max_n = comp.get('max_score') or 200 %}
+                                {# Try new level-based format first, fall back to old 'nota' #}
+                                {% if comp.get('level') is not none %}
+                                    {% set nota = comp.get('score') or 0 %}
+                                    {% set level_idx = comp.get('level') %}
+                                    {% set descricao = comp.get('description', '') %}
+                                {% else %}
+                                    {% set nota = comp.get('nota') or 0 %}
+                                    {% set level_idx = (nota // 40) if nota else 0 %}
+                                    {% set descricao = '' %}
+                                {% endif %}
                                 {% set pct = (nota / max_n * 100)|int %}
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between small">
-                                        <span>{{ comp['nome'] }}</span>
-                                        <span><strong>{{ nota }}</strong> / {{ max_n }}</span>
+                                        <span>
+                                            {{ comp.get('nome', key) }}
+                                            {% if descricao %}
+                                            <br><small class="text-muted fst-italic">{{ descricao }}</small>
+                                            {% endif %}
+                                        </span>
+                                        <span>
+                                            {% if comp.get('level') is not none %}
+                                                <span class="badge bg-secondary me-1">Nv {{ level_idx }}/5</span>
+                                            {% endif %}
+                                            <strong>{{ nota }}</strong> / {{ max_n }}
+                                        </span>
                                     </div>
                                     <div class="progress" style="height: 10px;">
                                         <div class="progress-bar
@@ -109,7 +128,7 @@
                             {% endif %}
                         {% endfor %}
 
-                        {# ── Feedback accordion (dynamic) ── #}
+                        {# ── Feedback accordion ── #}
                         <div class="accordion mt-3" id="feedback-{{ cor.id }}">
                             {% for key in sjson %}
                                 {% if key != 'total' and sjson[key].get('justificativa') %}
@@ -118,7 +137,7 @@
                                         <button class="accordion-button collapsed small py-2"
                                                 type="button" data-bs-toggle="collapse"
                                                 data-bs-target="#fb-{{ cor.id }}-{{ key }}">
-                                            {{ sjson[key]['nome'] }}
+                                            {{ sjson[key].get('nome', key) }}
                                         </button>
                                     </h2>
                                     <div id="fb-{{ cor.id }}-{{ key }}"

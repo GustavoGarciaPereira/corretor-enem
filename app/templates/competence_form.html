@@ -1,33 +1,67 @@
 {% extends "base.html" %}
 
-{% block title %}Editar Competência — Correção de Redação{% endblock %}
+{% block title %}{% if comp %}Editar{% else %}Nova{% endif %} Competência — Correção de Redação{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <h2 class="mb-4">Editar Competência</h2>
+    <div class="col-md-8">
+        <h2 class="mb-4">{% if comp %}Editar{% else %}Nova{% endif %} Competência</h2>
 
         <div class="card shadow">
             <div class="card-body">
-                <form method="post" action="/competences/{{ comp.id }}/edit">
+                <form method="post"
+                      action="{% if comp %}/competences/{{ comp.id }}/edit{% else %}/competences{% endif %}">
                     <div class="mb-3">
                         <label for="name" class="form-label">Nome</label>
                         <input type="text" class="form-control" id="name" name="name"
-                               value="{{ comp.name }}" required>
+                               value="{{ comp.name if comp else '' }}" required>
                     </div>
                     <div class="mb-3">
                         <label for="description" class="form-label">Descrição</label>
                         <textarea class="form-control" id="description" name="description"
-                                  rows="3" required>{{ comp.description }}</textarea>
+                                  rows="3" required>{{ comp.description if comp else '' }}</textarea>
                     </div>
                     <div class="mb-3">
                         <label for="max_score" class="form-label">Valor Máximo</label>
                         <input type="number" class="form-control" id="max_score" name="max_score"
-                               value="{{ comp.max_score }}" min="1" max="1000">
+                               value="{{ comp.max_score if comp else 200 }}" min="1" max="1000">
                     </div>
-                    <div class="d-flex justify-content-between">
+
+                    <hr>
+                    <h5 class="mb-3">🎯 Níveis de Desempenho (0 a 5)</h5>
+                    <p class="text-muted small">Cada nível deve ter uma pontuação e uma descrição qualitativa.</p>
+
+                    {% for i in range(6) %}
+                    {% set lvl = levels[i] if levels and i < levels|length else None %}
+                    <div class="card mb-3 border-light">
+                        <div class="card-body py-2">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-md-2">
+                                    <strong>Nível {{ i }}</strong>
+                                </div>
+                                <div class="col-md-2">
+                                    <input type="number" class="form-control form-control-sm"
+                                           name="level_{{ i }}_score"
+                                           placeholder="Pontos"
+                                           value="{{ lvl.score if lvl else i * 40 }}"
+                                           min="0" max="200" required>
+                                </div>
+                                <div class="col-md-8">
+                                    <input type="text" class="form-control form-control-sm"
+                                           name="level_{{ i }}_desc"
+                                           placeholder="Descrição do nível {{ i }}"
+                                           value="{{ lvl.description if lvl else '' }}" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    <div class="d-flex justify-content-between mt-4">
                         <a href="/competences" class="btn btn-outline-secondary">Cancelar</a>
-                        <button type="submit" class="btn btn-primary">Salvar</button>
+                        <button type="submit" class="btn btn-primary">
+                            {% if comp %}Salvar{% else %}Criar{% endif %}
+                        </button>
                     </div>
                 </form>
             </div>

@@ -4,28 +4,32 @@ import httpx
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.models.models import Essay, Correction, Competence, CorrectionTemplate, TemplateCompetence
+from app.models.models import (
+    Essay,
+    Correction,
+    Competence,
+    Level,
+    CorrectionTemplate,
+    TemplateCompetence,
+)
 
 # ─── System Prompts ──────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT_A = (
     "Você é um corretor RIGOROSO de redação. "
-    "Seu foco principal é avaliar com dureza a correção gramatical (ortografia, concordância, regência) "
-    "e a coesão textual (conectivos, progressão, articulação entre parágrafos). "
+    "Seu foco é avaliar com dureza a correção gramatical e a coesão textual. "
     "Seja crítico e detalhista nas justificativas."
 )
 
 SYSTEM_PROMPT_B = (
     "Você é um corretor PROGRESSISTA de redação. "
-    "Seu foco principal é valorizar a compreensão do tema, o repertório sociocultural "
-    "e a proposta de intervenção. "
-    "Seja generoso quando o texto mostrar boas ideias e criatividade."
+    "Seu foco é valorizar compreensão do tema, repertório e proposta de intervenção. "
+    "Seja generoso quando o texto mostrar boas ideias."
 )
 
 SYSTEM_PROMPT_C = (
     "Você é um corretor EQUILIBRADO de redação. "
-    "Analise todas as competências com justiça e imparcialidade. "
-    "Seu voto é o desempate."
+    "Analise todas as competências com justiça e imparcialidade. Seu voto é o desempate."
 )
 
 CORRECTOR_CONFIG = {
@@ -38,18 +42,24 @@ CORRECTOR_CONFIG = {
 # ─── Dynamic prompt builder ──────────────────────────────────────────────────
 
 def build_user_prompt(text: str, competences: list[Competence]) -> str:
-    """Build a prompt listing all competences dynamically."""
-    comp_list = "\n".join(
-        f"{i+1}. {c.name}: {c.description} (0 a {c.max_score})"
-        for i, c in enumerate(competences)
-    )
+    """Build a prompt listing competences with their level options."""
+    sections = []
+    for i, comp in enumerate(competences, start=1):
+        lines = [f"Competência {i}: {comp.name} – {comp.description} (0 a {comp.max_score})"]
+        sorted_levels = sorted(comp.levels or [], key=lambda x: x.level_index)
+        for lvl in sorted_levels:
+            lines.append(f"  Nível {lvl.level_index} ({lvl.score} pts): {lvl.description}")
+        sections.append("\n".join(lines))
+
+    comp_block = "\n\n".join(sections)
+
     return (
-        "Corrija a redação abaixo de acordo com as seguintes competências:\n\n"
-        f"{comp_list}\n\n"
-        "Para cada competência, retorne um objeto JSON com 'nota' (int) e 'justificativa' (string).\n"
+        "Corrija a redação abaixo de acordo com as seguintes competências.\n"
+        "Para cada competência, escolha o nível que melhor descreve o texto.\n\n"
+        f"{comp_block}\n\n"
         "Retorne APENAS JSON válido, sem markdown, no formato:\n"
-        '{"comp_1": {"nota": int, "justificativa": "..."},'
-        ' "comp_2": {...}, ..., "total": int}\n\n'
+        '{"comp_1": {"level": int, "justificativa": "..."},'
+        ' "comp_2": {"level": int, "justificativa": "..."}, ..., "total": int}\n\n'
         f"Redação:\n{text}"
     )
 
@@ -57,7 +67,6 @@ def build_user_prompt(text: str, competences: list[Competence]) -> str:
 # ─── Get competences for a template ──────────────────────────────────────────
 
 def get_competences_for_template(template_id: int) -> list[Competence]:
-    """Fetch all competences associated with a given template."""
     db = SessionLocal()
     try:
         competences = (
@@ -72,7 +81,6 @@ def get_competences_for_template(template_id: int) -> list[Competence]:
 
 
 def get_or_create_default_template() -> int:
-    """Return the id of the default ENEM template (creates if missing)."""
     db = SessionLocal()
     try:
         template = (
@@ -82,7 +90,6 @@ def get_or_create_default_template() -> int:
         )
         if template:
             return template.id
-        # If no default template exists yet, try to seed
         from app.core.seed import seed_default_data
         seed_default_data()
         template = (
@@ -95,16 +102,32 @@ def get_or_create_default_template() -> int:
         db.close()
 
 
+def _get_level_for_competence(competence_id: int, level_index: int) -> Level | None:
+    """Fetch a specific level by competence_id and level_index."""
+    db = SessionLocal()
+    try:
+        return (
+            db.query(Level)
+            .filter(
+                Level.competence_id == competence_id,
+                Level.level_index == level_index,
+            )
+            .first()
+        )
+    finally:
+        db.close()
+
+
 # ─── API call ────────────────────────────────────────────────────────────────
 
 async def call_deepseek_corrector(
     essay_text: str, corrector_type: str, competences: list[Competence]
 ) -> dict:
-    """Call the DeepSeek API for one correction pass with dynamic competences."""
+    """Call the DeepSeek API for one correction pass with level-based scoring."""
     cfg = CORRECTOR_CONFIG[corrector_type]
 
     if not settings.DEEPSEEK_API_KEY or settings.DEEPSEEK_API_KEY.startswith("sk-placeholder"):
-        return _mock_dynamic_correction(corrector_type, competences)
+        return _mock_level_correction(corrector_type, competences)
 
     headers = {
         "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
@@ -133,29 +156,41 @@ async def call_deepseek_corrector(
         data = response.json()
         content = data["choices"][0]["message"]["content"]
 
-    return _parse_json_response(content, corrector_type)
+    return _parse_json_response(content, corrector_type, competences)
 
 
-def _mock_dynamic_correction(corrector_type: str, competences: list[Competence]) -> dict:
-    """Return simulated correction for development without an API key."""
+def _mock_level_correction(corrector_type: str, competences: list[Competence]) -> dict:
+    """Return simulated level-based correction."""
     import random
 
     result = {}
     total = 0
     for i, comp in enumerate(competences, start=1):
-        nota = random.randint(comp.max_score // 2, comp.max_score)
+        sorted_levels = sorted(comp.levels or [], key=lambda x: x.level_index)
+        if sorted_levels:
+            chosen = random.choice(sorted_levels)
+            level_idx = chosen.level_index
+            score = chosen.score
+            desc = chosen.description
+        else:
+            level_idx = random.randint(0, 5)
+            score = level_idx * 40
+            desc = f"Nível {level_idx}"
+
         key = f"comp_{i}"
         result[key] = {
-            "nota": nota,
-            "justificativa": f"[Mock {corrector_type}] Avaliação simulada para '{comp.name}'.",
+            "level": level_idx,
+            "justificativa": f"[Mock {corrector_type}] Nível {level_idx} escolhido para '{comp.name}': {desc}",
         }
-        total += nota
+        total += score
     result["total"] = total
     return {corrector_type: result}
 
 
-def _parse_json_response(content: str, corrector_type: str) -> dict:
-    """Parse the LLM response into a structured dict, stripping markdown fences."""
+def _parse_json_response(
+    content: str, corrector_type: str, competences: list[Competence]
+) -> dict:
+    """Parse the LLM response. Expects {'comp_1': {'level': int, ...}, 'total': int}."""
     cleaned = content.strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.split("\n", 1)[-1]
@@ -163,12 +198,44 @@ def _parse_json_response(content: str, corrector_type: str) -> dict:
         cleaned = cleaned.strip()
 
     try:
-        result = json.loads(cleaned)
+        parsed = json.loads(cleaned)
     except json.JSONDecodeError:
         raise ValueError(
             f"Failed to parse JSON from {corrector_type} response: {content[:200]}"
         )
 
+    # Build competence_id → Level map for this set of competences
+    comp_id_map = {}
+    for comp in competences:
+        for lvl in (comp.levels or []):
+            comp_id_map[(comp.id, lvl.level_index)] = lvl
+
+    result = {}
+    total = 0
+    for i, comp in enumerate(competences, start=1):
+        key = f"comp_{i}"
+        raw = parsed.get(key, {})
+        level_idx = raw.get("level", 0) if isinstance(raw, dict) else 0
+        justificativa = raw.get("justificativa", "") if isinstance(raw, dict) else ""
+
+        # Look up the level details
+        found_level = comp_id_map.get((comp.id, level_idx))
+        if found_level:
+            score = found_level.score
+            description = found_level.description
+        else:
+            score = level_idx * 40
+            description = f"Nível {level_idx}"
+
+        result[key] = {
+            "level": level_idx,
+            "score": score,
+            "description": description,
+            "justificativa": justificativa,
+        }
+        total += score
+
+    result["total"] = total
     return {corrector_type: result}
 
 
@@ -178,7 +245,6 @@ async def perform_double_correction(essay_id: int, essay_text: str):
     """Run dual correction (A + B), save results, decide if C is needed."""
     import asyncio
 
-    # Fetch competences for this essay's template
     db = SessionLocal()
     try:
         essay = db.query(Essay).filter(Essay.id == essay_id).first()
@@ -191,14 +257,16 @@ async def perform_double_correction(essay_id: int, essay_text: str):
 
         competences = get_competences_for_template(template_id)
         if not competences:
-            # Fallback: create a single generic competence
             competences = [
-                Competence(name="Avaliação Geral", description="Nota geral da redação", max_score=1000)
+                Competence(
+                    name="Avaliação Geral",
+                    description="Nota geral da redação",
+                    max_score=1000,
+                )
             ]
     finally:
         db.close()
 
-    # Step 1: Run A and B in parallel
     results = await asyncio.gather(
         call_deepseek_corrector(essay_text, "A", competences),
         call_deepseek_corrector(essay_text, "B", competences),
@@ -208,7 +276,6 @@ async def perform_double_correction(essay_id: int, essay_text: str):
     for r in results:
         corrections_data.update(r)
 
-    # Step 2: Save A and B to DB
     db = SessionLocal()
     try:
         for ct in ("A", "B"):
@@ -216,19 +283,16 @@ async def perform_double_correction(essay_id: int, essay_text: str):
             _save_correction(db, essay_id, ct, data, competences)
             db.commit()
 
-        # Step 3: Check score difference
         score_a = corrections_data["A"]["total"]
         score_b = corrections_data["B"]["total"]
         diff = abs(score_a - score_b)
 
         if diff > 100:
-            # Step 4: Call tiebreaker C
             c_result = await call_deepseek_corrector(essay_text, "C", competences)
             corrections_data.update(c_result)
             _save_correction(db, essay_id, "C", c_result["C"], competences)
             db.commit()
 
-            # Step 5: Find the two closest scores and average them
             score_c = c_result["C"]["total"]
             pairs = [
                 (abs(score_a - score_b), ("A", "B")),
@@ -237,21 +301,16 @@ async def perform_double_correction(essay_id: int, essay_text: str):
             ]
             pairs.sort(key=lambda x: x[0])
             best_pair_keys = pairs[0][1]
-
-            final_scores = {
-                k: corrections_data[k]["total"] for k in best_pair_keys
-            }
+            final_scores = {k: corrections_data[k]["total"] for k in best_pair_keys}
             final_score = sum(final_scores.values()) // len(final_scores)
         else:
             final_score = (score_a + score_b) // 2
 
-        # Step 6: Update essay status
         essay = db.query(Essay).filter(Essay.id == essay_id).first()
         if essay:
             essay.status = "completed"
             essay.final_score = final_score
             db.commit()
-
     finally:
         db.close()
 
@@ -267,27 +326,40 @@ def _save_correction(
     data: dict,
     competences: list[Competence],
 ):
-    """Insert a Correction row, storing both scores_json and backward-compat c1..c5."""
-    # Build scores_json with competence names
+    """Insert a Correction row with scores_json in the new level-based format."""
     scores_json = {}
     total = data.get("total", 0)
+
     for i, comp in enumerate(competences, start=1):
         key = f"comp_{i}"
         comp_data = data.get(key, {})
-        scores_json[key] = {
-            "nome": comp.name,
-            "nota": comp_data.get("nota", 0) if isinstance(comp_data, dict) else comp_data,
-            "max_score": comp.max_score,
-            "justificativa": comp_data.get("justificativa", "") if isinstance(comp_data, dict) else "",
-        }
+        if isinstance(comp_data, dict):
+            scores_json[key] = {
+                "nome": comp.name,
+                "level": comp_data.get("level", 0),
+                "score": comp_data.get("score", 0),
+                "description": comp_data.get("description", ""),
+                "max_score": comp.max_score,
+                "justificativa": comp_data.get("justificativa", ""),
+            }
+        else:
+            scores_json[key] = {
+                "nome": comp.name,
+                "level": 0,
+                "score": 0,
+                "description": "",
+                "max_score": comp.max_score,
+                "justificativa": "",
+            }
+
     scores_json["total"] = total
 
-    # Also fill c1..c5 for backward compatibility (map comp_1→c1, etc.)
+    # Fill c1..c5 for backward compat
     c_vals = {}
     for i in range(1, 6):
         key = f"comp_{i}"
-        comp_data = data.get(key, {})
-        c_vals[f"c{i}"] = comp_data.get("nota", None) if isinstance(comp_data, dict) else None
+        cd = data.get(key, {}) if isinstance(data.get(key), dict) else {}
+        c_vals[f"c{i}"] = cd.get("score", None)
 
     correction = Correction(
         essay_id=essay_id,

@@ -34,7 +34,23 @@ class User(Base):
     )
 
 
-# ─── Competence / Template ───────────────────────────────────────────────────
+# ─── Competence / Template / Level ───────────────────────────────────────────
+
+
+class Level(Base):
+    __tablename__ = "levels"
+
+    id = Column(Integer, primary_key=True, index=True)
+    competence_id = Column(Integer, ForeignKey("competences.id"), nullable=False)
+    level_index = Column(Integer, nullable=False)  # 0, 1, 2, 3, 4, 5
+    score = Column(Integer, nullable=False)        # 0, 40, 80, 120, 160, 200
+    description = Column(Text, nullable=False)
+    is_default = Column(Boolean, default=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    competence = relationship("Competence", back_populates="levels")
 
 
 class Competence(Base):
@@ -51,6 +67,10 @@ class Competence(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     creator = relationship("User", back_populates="competences")
+    levels = relationship(
+        "Level", back_populates="competence", cascade="all, delete-orphan",
+        order_by="Level.level_index", lazy="selectin",
+    )
 
 
 class CorrectionTemplate(Base):
@@ -118,7 +138,7 @@ class Correction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     essay_id = Column(Integer, ForeignKey("essays.id"), nullable=False)
-    corrector_type = Column(String(1), nullable=False)  # 'A', 'B', or 'C'
+    corrector_type = Column(String(1), nullable=False)
     total_score = Column(Integer, nullable=True)
     c1 = Column(Integer, nullable=True)
     c2 = Column(Integer, nullable=True)
@@ -126,7 +146,7 @@ class Correction(Base):
     c4 = Column(Integer, nullable=True)
     c5 = Column(Integer, nullable=True)
     feedback_json = Column(Text, nullable=True)
-    scores_json = Column(JSON, nullable=True)  # {"comp_1": {"nota": int, ...}, "total": int}
+    scores_json = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     essay = relationship("Essay", back_populates="corrections")
