@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Revisar Texto — Correção de Redação{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2 class="mb-4">Revisar Texto Extraído</h2>
+
+        {% if essay.source_type == 'scanned' %}
+        <div class="alert alert-info">
+            O texto abaixo foi extraído automaticamente do arquivo
+            <strong>{{ essay.filename }}</strong>.
+            Revise e corrija quaisquer erros de OCR antes de prosseguir.
+        </div>
+        {% endif %}
+
+        <div class="card shadow">
+            <div class="card-body">
+                <form method="post" action="/review/{{ essay.id }}">
+                    <div class="mb-3">
+                        <label for="raw_text" class="form-label">Texto da redação:</label>
+                        <textarea class="form-control" id="raw_text" name="raw_text"
+                                  rows="20" required>{{ essay.raw_text or '' }}</textarea>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a href="/upload" class="btn btn-outline-secondary">Voltar</a>
+                        <button type="submit" class="btn btn-success">
+                            ✓ Confirmar e Corrigir
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

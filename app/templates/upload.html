@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Nova Correção — Correção de Redação{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2 class="mb-4">Nova Correção</h2>
+
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-4" id="uploadTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="text-tab" data-bs-toggle="tab"
+                        data-bs-target="#text-pane" type="button" role="tab"
+                        aria-controls="text-pane" aria-selected="true">
+                    📝 Colar Texto
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="file-tab" data-bs-toggle="tab"
+                        data-bs-target="#file-pane" type="button" role="tab"
+                        aria-controls="file-pane" aria-selected="false">
+                    📎 Enviar Arquivo
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="uploadTabsContent">
+            <!-- Tab: Paste text -->
+            <div class="tab-pane fade show active" id="text-pane" role="tabpanel"
+                 aria-labelledby="text-tab">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <form method="post" action="/upload/text">
+                            <div class="mb-3">
+                                <label for="raw_text" class="form-label">
+                                    Cole o texto da redação abaixo:
+                                </label>
+                                <textarea class="form-control" id="raw_text" name="raw_text"
+                                          rows="20" required
+                                placeholder="Cole aqui o texto completo da redação..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                Enviar para Correção
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Upload file -->
+            <div class="tab-pane fade" id="file-pane" role="tabpanel"
+                 aria-labelledby="file-tab">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <form method="post" action="/upload/file" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="file" class="form-label">
+                                    Selecione um arquivo (PDF, JPG ou PNG):
+                                </label>
+                                <input class="form-control" type="file" id="file" name="file"
+                                       accept=".pdf,.jpg,.jpeg,.png" required>
+                            </div>
+                            <div class="text-muted small mb-3">
+                                Máximo de 10 MB. Para PDFs, tenta extrair texto diretamente;
+                                se não houver texto, faz OCR via IA.
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                Enviar para Revisão
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-3">
+            <a href="/dashboard" class="btn btn-outline-secondary">← Voltar ao Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

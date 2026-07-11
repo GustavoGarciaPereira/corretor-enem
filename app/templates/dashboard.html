@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Correção de Redação{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Minhas Redações</h2>
+    <a href="/upload" class="btn btn-success">+ Nova Correção</a>
+</div>
+
+{% if essays %}
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Nota Final</th>
+                <th>Status</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for essay in essays %}
+            <tr>
+                <td>{{ essay.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>
+                    {% if essay.source_type == 'pasted' %}
+                        📝 Colado
+                    {% else %}
+                        📄 Digitalizado
+                    {% endif %}
+                </td>
+                <td>
+                    {% if essay.final_score is not none %}
+                        <strong>{{ essay.final_score }}</strong>
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td>
+                    {% if essay.status == 'completed' %}
+                        <span class="badge bg-success">Concluído</span>
+                    {% elif essay.status == 'pending_correction' %}
+                        <span class="badge bg-warning text-dark">Aguardando correção</span>
+                    {% elif essay.status == 'pending_review' %}
+                        <span class="badge bg-info text-dark">Revisão necessária</span>
+                    {% elif essay.status == 'failed' %}
+                        <span class="badge bg-danger">Falha</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ essay.status }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if essay.status == 'completed' %}
+                        <a href="/result/{{ essay.id }}" class="btn btn-sm btn-primary">Ver</a>
+                    {% elif essay.status == 'failed' %}
+                        <a href="/correction/start/{{ essay.id }}" class="btn btn-sm btn-warning">Tentar novamente</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <p class="text-muted fs-5">Nenhuma redação encontrada.</p>
+    <a href="/upload" class="btn btn-primary btn-lg">Enviar minha primeira redação</a>
+</div>
+{% endif %}
+{% endblock %}
