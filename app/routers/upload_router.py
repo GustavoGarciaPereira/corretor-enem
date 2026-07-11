@@ -49,7 +49,7 @@ def upload_page(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse(
         "upload.html",
-        {"request": request, "correction_templates": correction_templates},
+        {"request": request, "correction_templates": correction_templates, "user": user},
     )
 
 
