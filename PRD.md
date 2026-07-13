@@ -1,7 +1,3 @@
-Aqui está o **PRD (Product Requirements Document) completo e definitivo** para o projeto. Ele abrange desde a concepção inicial até a feature de CRUD de competências dinâmicas, consolidando tudo que discutimos.
-
----
-
 # 📄 PRD – Plataforma de Correção Dual de Redações com IA (ENEM e Vestibulares)
 
 **Versão:** 2.0 (Final)  
@@ -210,7 +206,3 @@ Oferecer uma plataforma web que:
 | **Template** | Agrupamento de competências que define o "formato" de uma correção (ex: "ENEM 2025"). |
 | **Corretor A/B/C** | Personas da IA. A = Rigoroso (foco gramatical); B = Progressista (foco argumentativo); C = Equilibrado (desempate). |
 | **scores_json** | Campo JSON que armazena as notas e justificativas de todas as competências de uma correção. |
-
----
-
-Este PRD é o **documento fonte** para todo o desenvolvimento. Qualquer dúvida sobre escopo, regras de negócio ou fluxos deve ser resolvida consultando este documento. Ele está pronto para ser apresentado a stakeholders e para guiar a equipe de desenvolvimento. 🚀
